@@ -1,2 +1,5 @@
 ---
 # vars file for wordpress-role
+
+MYSQL_SERVER: localhost
+MYSQL_ROOT_PASSWORD: Str0ngP4sswd

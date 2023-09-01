@@ -1,2 +1,21 @@
 ---
 # vars file for apache2-role
+
+apache2:
+  port: 80
+  disable_IPv6: true
+  virtualhost_dir: /var/www/vhosts
+
+php_skip_install: false
+# present || absent
+php_state: present
+php_repo_state: present
+php_versions:
+- 7.0
+- 7.1
+- 7.2
+- 7.3
+- 7.4
+- 8.0
+- 8.1
+- 8.2

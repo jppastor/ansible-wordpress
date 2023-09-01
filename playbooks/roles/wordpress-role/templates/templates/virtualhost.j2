@@ -1,0 +1,8 @@
+<VirtualHost *:{{ apache2.port }}>
+  ServerName {{ apache2.virtualhost.name }}
+  ServerAdmin {{ apache2.virtualhost.admin }}
+  DocumentRoot {{ apache2.virtualhost.path }}/{{ apache2.virtualhost.name }}
+  ErrorLog ${APACHE_LOG_DIR}/{{ apache2.virtualhost.name }}-error.log
+  CustomLog ${APACHE_LOG_DIR}/{{ apache2.virtualhost.name }}-access.log combined
+  #Include conf-available/serve-cgi-bin.conf
+</VirtualHost>

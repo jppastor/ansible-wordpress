@@ -1,0 +1,8 @@
+<VirtualHost *:{{ apache2.port }}>
+  ServerName {{ new_vhost }}
+  ServerAdmin webmaster@maresvirtuales.com
+  DocumentRoot {{ apache2.virtualhost_dir }}/{{ new_vhost }}
+  ErrorLog ${APACHE_LOG_DIR}/{{ new_vhost }}-error.log
+  CustomLog ${APACHE_LOG_DIR}/{{ new_vhost }}-access.log combined
+  Include conf-available/php7.2-fpm.conf
+</VirtualHost>

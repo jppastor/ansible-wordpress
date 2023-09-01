@@ -1,0 +1,26 @@
+- name: Delete database "{{ db_name }}"
+  mysql_db:
+    name: "{{ db_name }}"
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  when: db_dele | default(false) | bool == true
+
+- name: Create database "{{ db_name }}"
+  mysql_db:
+    name: "{{ db_name }}"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  when: db_name is defined
+
+- name: Create MySQL user "{{ db_user }}"
+  mysql_user:
+    name: "{{ db_user }}"
+    host: "{{ db_host }}"
+    password: "{{ db_pass }}"
+    priv: "{{ db_name }}.*:ALL"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  when: db_name is defined and db_user is defined and db_host is defined and db_pass is defined

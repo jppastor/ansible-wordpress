@@ -1,2 +1,11 @@
 ---
 # handlers file for wordpress-role
+
+- name: apache2 restart
+  become: true
+  service: name=apache2 state=restarted
+  when: apachectl-ok|sucess
+
+- name: apachectl
+  command: apachectl -t
+  register: apachectl-ok
