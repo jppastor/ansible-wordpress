@@ -1,2 +1,103 @@
 ---
 # tasks file for wordpress-role
+
+- name: Ensure apache2 is running
+  service: name=apache2 state=started enabled=yes
+
+- name: Install minimal PHP Extensions required by Wordpress
+  apt: name={{ item }} state=present update_cache=yes
+  become: true
+  with_items:
+    - php{{ php.version }}-common
+    - php{{ php.version }}-mysqli
+    - libapache2-mod-php{{ php.version }}
+
+- name: Check if "{{ apache2.virtualhost.path }}" exists!
+  file:
+    path: "{{ apache2.virtualhost.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Add VirtualHost configuration file
+  template:
+    src: virtualhost.j2
+    dest: "/etc/apache2/sites-available/{{ apache2.virtualhost.name }}.conf"
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - apachectl
+
+- name: Creating apache2 config links for "{{ apache2.virtualhost.name }}"
+  file:
+    src: "/etc/apache2/sites-available/{{ apache2.virtualhost.name }}.conf"
+    dest: "/etc/apache2/sites-enabled/{{ apache2.virtualhost.name }}.conf"
+    state: link
+    owner: root
+    group: root
+  notify:
+    - apachectl
+    - apache2 restart
+
+- name: Download WordPress Version "{{ wp.version }}"
+  get_url: 
+    url: "https://es.wordpress.org/wordpress-{{wp.version}}-es_ES.tar.gz"
+    dest: "{{ apache2.virtualhost.path }}"
+    force: yes
+  tags: downwp
+
+- name: Extract archive
+  unarchive:
+    src: "{{ apache2.virtualhost.path }}/wordpress-{{ wp.version }}-es_ES.tar.gz"
+    dest: "{{ apache2.virtualhost.path }}"
+    remote_src: yes
+  tags: extract
+
+- name: Stat wordpress unarchived directory
+  stat: path="{{ apache2.virtualhost.path }}/wordpress"
+  register: wpdir
+
+- name: Rename unarchived directory
+  command: "mv {{ apache2.virtualhost.path }}/wordpress {{ apache2.virtualhost.path }}/{{ apache2.virtualhost.name }}"
+  when: wpdir.stat.exists
+
+- name: Set recursive owner and group
+  file:
+    dest: "{{ apache2.virtualhost.path }}/{{ apache2.virtualhost.name }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    recurse: yes
+
+- name: Fetch random salts for WordPress config
+  local_action: command curl https://api.wordpress.org/secret-key/1.1/salt/ warn=False
+  register: "wp_salt"
+  become: no
+  tags: salts
+
+## MYSQL
+- name: Including task file "mysql.yml"
+  include_tasks: mysql.yml
+  vars:
+    - db_name: "{{ wp.db_name }}"
+    - db_host: "{{ wp.db_host }}"
+    - db_user: "{{ wp.db_user }}"
+    - db_pass: "{{ wp.db_pass }}"
+
+- name: Set WordPress config file
+  template:
+    src: wp-config.j2
+    dest: "{{ apache2.virtualhost.path }}/{{ apache2.virtualhost.name }}/wp-config.php"
+    owner: www-data
+    group: www-data
+    mode: 0644
+  tags: config
+
+- name: Remove wordpress-{{ wp.version }}-es_ES.tar.gz file
+  file:
+    path: "{{ apache2.virtualhost.path }}/wordpress-{{ wp.version }}-es_ES.tar.gz"
+    state: absent
+  become: yes
+  tags: delete

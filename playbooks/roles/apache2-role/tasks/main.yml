@@ -1,2 +1,134 @@
 ---
 # tasks file for apache2-role
+
+- name: State of ondrej/php repository
+  apt_repository:
+    repo: ppa:ondrej/php
+    state: "{{ php_repo_state }}"
+  
+- name: Update packages
+  apt:
+    upgrade: yes
+    update_cache: yes
+    cache_valid_time: 86400
+
+- name: Install Apache2
+  apt: 
+    name: "{{ item }}"
+    state: present
+  loop:
+    - apache2
+    - libapache2-mod-fcgid
+    - nfs-common
+    - binutils
+
+- name: "Disable mpm_prefork"
+  apache2_module:
+    state: absent
+    name: mpm_prefork
+
+- name: "Enable apache modules"
+  apache2_module:
+    state: present
+    name: "{{ item }}"
+  loop:
+    - proxy_fcgi
+    - fcgid
+    - alias
+    - ssl
+    - rewrite
+    - mpm_event
+
+## PHP
+
+- include_tasks: php.yml
+  when: php_skip_install | default(false) | bool == false
+
+## Security
+
+- name: Apply security policies
+  lineinfile:
+    path: "{{ item.file }}"
+    state: present
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backrefs: yes
+  loop:
+    - { file: /etc/apache2/conf-available/security.conf, regexp: '^ServerTokens OS$', line: 'ServerTokens Prod' }
+    - { file: /etc/apache2/conf-available/security.conf, regexp: '^ServerSignature On$', line: 'ServerSignature Off' }
+
+- name: Create "{{ apache2.virtualhost_dir }}"
+  file:
+    path: "{{ apache2.virtualhost_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Replace Apache2 default index page
+  copy:
+    src: files/index.html
+    dest: /var/www/html/
+    owner: www-data
+    group: www-data
+    mode: 0664
+
+- name: Listen only on IPv4
+  lineinfile:
+    path: /etc/apache2/ports.conf
+    state: present
+    regexp: 'Listen {{ apache2.port }}'
+    line: 'Listen 0.0.0.0:{{ apache2.port }}'
+    backrefs: yes
+  when: apache2.disable_IPv6 | default(true) | bool == true
+
+  
+# If reconfigure listen port
+# var: chport (boolean)
+
+- name: Reconfigure apache2 to listen on port {{ apache2_site_port }} 
+  lineinfile:
+    path: /etc/apache2/ports.conf
+    state: present
+    regexp: 'Listen 0.0.0.0:{{ apache2.port }}'
+    line: 'Listen 0.0.0.0:{{ chport }}'
+    backrefs: yes
+  when: chport | default(false) | bool == true
+
+# If add new vhost (argument variable)
+# var: new_vhost (string)
+
+- name: Create system directory structure
+  file:
+    path: "{{ apache2.virtualhost_dir }}/{{ new_vhost }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: 0755
+  when: new_vhost is defined
+
+- name: Add new vhost {{ new_vhost }}
+  template:
+    src: add_new_vhost.j2
+    dest: /etc/apache2/sites-available/{{ new_vhost }}.conf
+    owner: root
+    group: root
+    mode: 0644
+  when: new_vhost is defined
+
+- name: Creating apache2 config links for "{{ new_vhost }}"
+  file:
+    src: "/etc/apache2/sites-available/{{ new_vhost }}.conf"
+    dest: "/etc/apache2/sites-enabled/{{ new_vhost }}.conf"
+    state: link
+    owner: root
+    group: root
+  notify: apache2 restart
+  when: new_vhost is defined
+
+# Always Restart service
+- name: Restart Apache2 service
+  command: systemctl restart apache2.service
+
+- name: Ensure apache2 is running
+  service: name=apache2 state=started enabled=yes
