@@ -1,0 +1,3 @@
+playbooks/run_role.retry
+*.geany
+*vars/credentials.yml
